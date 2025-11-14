@@ -81,62 +81,56 @@ def calculate_and_visualize(image: np.ndarray, contours: list, pixels_per_cm: fl
         
         for j in range(num_ticks + 1):
             tick_x = x + j * tick_interval_px
-            cv2.line(image, (tick_x, y), (tick_x, y - 10), (255, 255, 0), 2)
-            cv2.putText(image, str(j), (tick_x - 10, y - 20), font, 0.6, (255, 255, 0), 2)
+            if j % 5 == 0:
+                cv2.line(image, (tick_x, y), (tick_x, y - 15), (255, 255, 0), 2)
+                cv2.putText(image, str(j), (tick_x - 10, y - 20), font, 0.6, (255, 255, 0), 2)
+            else:
+                cv2.line(image, (tick_x, y), (tick_x, y - 10), (255, 255, 0), 1)
 
         all_measurements.append({
-            "cluster_id": i + 1,
             "width_cm": round(width_cm, 2),
             "height_cm": round(height_cm, 2)
         })
         
     return image, all_measurements
 
-def save_image_result(output_path: str, image_data: np.ndarray):
-    cv2.imwrite(output_path, image_data)
-    print(f"Output image saved to: {output_path}")
+def process_image(input_path: str):
+    image = cv2.imread(input_path)
+    if image is None:
+        raise FileNotFoundError(f"Could not read input image: {input_path}")
 
-def save_csv_result(output_path: str, measurement_data: list):
-    if not measurement_data:
-        return
-    with open(output_path, 'w', newline='') as csvfile:
-        fieldnames = measurement_data[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(measurement_data)
-    print(f"Measurement data saved to: {output_path}")
+    pixels_per_cm = find_ruler_and_calibrate(image.copy())
+    if pixels_per_cm is None:
+        raise ValueError("Ruler not found in image.")
 
-def main():
+    cluster_contours = segment_fruit_clusters(image.copy())
+    if not cluster_contours:
+        raise ValueError("No fruit clusters found in image.")
+
+    result_image, measurements = calculate_and_visualize(image.copy(), cluster_contours, pixels_per_cm)
+    
+    return result_image, measurements
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Calculate fruit cluster size and output image and CSV data.')
     parser.add_argument('input_image', type=str, help='Path to the input image.')
     parser.add_argument('output_image', type=str, help='Path to save the output image (.jpg, .png).')
     parser.add_argument('output_csv', type=str, help='Path to save the output CSV file (.csv).')
     args = parser.parse_args()
 
-    image = cv2.imread(args.input_image)
-    if image is None:
-        print(f"Error: Could not read input image: {args.input_image}")
-        return
-
-    pixels_per_cm = find_ruler_and_calibrate(image.copy())
-    if pixels_per_cm is None:
-        print("Error: Ruler not found in image.")
-        return
-
-    cluster_contours = segment_fruit_clusters(image.copy())
-    if not cluster_contours:
-        print("Error: No fruit clusters found in image.")
-        return
-
-    result_image, measurements = calculate_and_visualize(image.copy(), cluster_contours, pixels_per_cm)
+    try:
+        res_img, meas = process_image(args.input_image)
+        
+        cv2.imwrite(args.output_image, res_img)
+        print(f"Output image saved to: {args.output_image}")
+        
+        if meas:
+            with open(args.output_csv, 'w', newline='') as csvfile:
+                fieldnames = ["width_cm", "height_cm"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(meas)
+            print(f"Measurement data saved to: {args.output_csv}")
     
-    print("\nAnalysis Results:")
-    for meas in measurements:
-        print(f"Cluster {meas['cluster_id']}: Width={meas['width_cm']} cm, Height={meas['height_cm']} cm")
-    print("")
-    
-    save_image_result(args.output_image, result_image)
-    save_csv_result(args.output_csv, measurements)
-
-if __name__ == '__main__':
-    main()
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error: {e}")
