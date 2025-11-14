@@ -66,12 +66,13 @@ def segment_individual_berries(image: np.ndarray):
         if label <= 1:
             continue
         
-        mask = np.zeros(markers.shape, dtype="uint8")
-        mask[markers == label] = 255
+        mask_label = np.zeros(markers.shape, dtype="uint8")
+        mask_label[markers == label] = 255
         
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        berry_contours.append(contours[0])
-        
+        contours, _ = cv2.findContours(mask_label, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            berry_contours.append(contours[0])
+            
     return berry_contours
 
 def calculate_and_visualize_berries(image: np.ndarray, contours: list, pixels_per_cm: float):
@@ -94,48 +95,43 @@ def calculate_and_visualize_berries(image: np.ndarray, contours: list, pixels_pe
         
     return image, all_measurements
 
-def save_image_result(output_path: str, image_data: np.ndarray):
-    cv2.imwrite(output_path, image_data)
-    print(f"Output image saved to: {output_path}")
+def process_image(input_path: str):
+    image = cv2.imread(input_path)
+    if image is None:
+        raise FileNotFoundError(f"Could not read input image: {input_path}")
 
-def save_csv_result(output_path: str, measurement_data: list):
-    if not measurement_data:
-        return
-    with open(output_path, 'w', newline='') as csvfile:
-        fieldnames = measurement_data[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(measurement_data)
-    print(f"Measurement data saved to: {output_path}")
+    pixels_per_cm = find_ruler_and_calibrate(image.copy())
+    if pixels_per_cm is None:
+        raise ValueError("Ruler not found in image.")
 
-def main():
+    berry_contours = segment_individual_berries(image.copy())
+    if not berry_contours:
+        raise ValueError("No berries found in image.")
+
+    result_image, measurements = calculate_and_visualize_berries(image.copy(), berry_contours, pixels_per_cm)
+    
+    return result_image, measurements
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Identify and measure all individual berries in an image.')
     parser.add_argument('input_image', type=str, help='Path to the input image.')
     parser.add_argument('output_image', type=str, help='Path to save the output image (.jpg, .png).')
     parser.add_argument('output_csv', type=str, help='Path to save the output CSV file (.csv).')
     args = parser.parse_args()
 
-    image = cv2.imread(args.input_image)
-    if image is None:
-        print(f"Error: Could not read input image: {args.input_image}")
-        return
-
-    pixels_per_cm = find_ruler_and_calibrate(image.copy())
-    if pixels_per_cm is None:
-        print("Error: Ruler not found in image.")
-        return
-
-    berry_contours = segment_individual_berries(image.copy())
-    if not berry_contours:
-        print("Error: No berries found in image.")
-        return
-
-    result_image, measurements = calculate_and_visualize_berries(image.copy(), berry_contours, pixels_per_cm)
+    try:
+        res_img, meas = process_image(args.input_image)
+        
+        cv2.imwrite(args.output_image, res_img)
+        print(f"Output image saved to: {args.output_image}")
+        
+        if meas:
+            with open(args.output_csv, 'w', newline='') as csvfile:
+                fieldnames = meas[0].keys()
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(meas)
+            print(f"Measurement data saved to: {args.output_csv}")
     
-    print(f"\nAnalysis Results: Found {len(measurements)} berries.")
-    
-    save_image_result(args.output_image, result_image)
-    save_csv_result(args.output_csv, measurements)
-
-if __name__ == '__main__':
-    main()
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error: {e}")
