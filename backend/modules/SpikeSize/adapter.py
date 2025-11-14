@@ -2,7 +2,7 @@ import tempfile
 import os
 import cv2
 import base64
-from . import main as spike_size_script
+from backend.modules.SpikeSize import main as spike_size_script
 
 def analyze_size_from_bytes(image_bytes: bytes) -> dict:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_input_file:
@@ -17,7 +17,7 @@ def analyze_size_from_bytes(image_bytes: bytes) -> dict:
             
         _, buffer = cv2.imencode('.png', result_image_np)
         image_base64 = base64.b64encode(buffer).decode('utf-8')
-
+        
         measurement_data = measurements[0]
         
         return {

@@ -2,7 +2,7 @@ import tempfile
 import os
 import cv2
 import base64
-from . import main as branch_angle_script
+from backend.modules.BranchAngle import main as branch_angle_script
 
 def analyze_angle_from_bytes(image_bytes: bytes) -> dict:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_input_file:

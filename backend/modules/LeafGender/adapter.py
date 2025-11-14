@@ -1,6 +1,6 @@
 import tempfile
 import os
-from . import main as leaf_gender_script
+from backend.modules.LeafGender import main as leaf_gender_script
 
 def analyze_gender_from_bytes(image_bytes: bytes) -> dict:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_input_file:

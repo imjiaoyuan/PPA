@@ -1,6 +1,6 @@
 import tempfile
 import os
-from . import main as color_scan_script
+from backend.modules.ColorScan import main as color_scan_script
 
 def analyze_color_from_bytes(image_bytes: bytes) -> dict:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_input_file:

@@ -2,7 +2,7 @@ import tempfile
 import os
 import cv2
 import base64
-from . import main as grain_count_script
+from backend.modules.GrainCount import main as grain_count_script
 
 def analyze_grains_from_bytes(image_bytes: bytes) -> dict:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_input_file:
