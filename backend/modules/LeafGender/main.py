@@ -10,19 +10,25 @@ MODEL_PATH = os.path.join(MODULE_DIR, "best_model2.pth")
 NUM_CLASSES = 2
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+model = None
+
 def get_model():
-    model = models.efficientnet_b2(weights=None)
-    model.classifier[1] = nn.Linear(model.classifier[1].in_features, NUM_CLASSES)
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-    model.to(DEVICE)
-    model.eval()
+    global model
+    if model is None:
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
+        
+        local_model = models.efficientnet_b2(weights=None)
+        local_model.classifier[1] = nn.Linear(local_model.classifier[1].in_features, NUM_CLASSES)
+        local_model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+        local_model.to(DEVICE)
+        local_model.eval()
+        model = local_model
     return model
 
-model = get_model()
-
 def predict_gender_from_path(image_path: str) -> dict:
+    current_model = get_model()
+    
     preprocess = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
@@ -39,7 +45,7 @@ def predict_gender_from_path(image_path: str) -> dict:
     image_batch = image_tensor.unsqueeze(0).to(DEVICE)
 
     with torch.no_grad():
-        output = model(image_batch)
+        output = current_model(image_batch)
     
     probabilities = torch.nn.functional.softmax(output[0], dim=0)
     
@@ -58,6 +64,6 @@ if __name__ == "__main__":
             print(f"Female: {result['female_prob']:.2%}")
             print(f"Male: {result['male_prob']:.2%}")
         except FileNotFoundError:
-            print(f"Error: Image not found at '{input_image_path}'")
+            print(f"Error: Model or image not found for path: '{input_image_path}'")
         except Exception as e:
             print(f"An error occurred: {e}")
